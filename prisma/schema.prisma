@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id              String           @id @default(cuid())
+  name            String
+  email           String           @unique
+  password        String?
+  avatar          String? 
+  isGoogleLogin   Boolean          @default(false)
+  isVerified      Boolean          @default(false)
+  documents       Document[]       @relation("UserDocuments")
+  sharedDocuments DocumentShare[]  @relation("SharedWithUser")
+}
+
+model Document {
+  id          String           @id @default(cuid())
+  title       String           @default("Untitled Document")
+  content     Json
+  ownerId     String
+  owner       User             @relation("UserDocuments", fields: [ownerId], references: [id])
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  visibility  DocumentVisibility @default(PUBLIC) 
+  shares      DocumentShare[]
+}
+
+model DocumentShare {
+  id          String   @id @default(cuid())
+  documentId  String
+  userId      String
+  role        Role     @default(VIEWER)
+  document    Document @relation(fields: [documentId], references: [id])
+  user        User     @relation("SharedWithUser", fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@unique([documentId, userId]) 
+}
+
+enum Role {
+  VIEWER
+  EDITOR
+}
+
+enum DocumentVisibility {
+  PUBLIC 
+  RESTRICTED 
+}
