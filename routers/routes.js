@@ -5,6 +5,6 @@ const { authMiddleware } = require("../lib/middleware");
 const router = Router();
 
 router.use("/auth", authRouter);
-router.use("/document", authMiddleware, documentRouter);
+router.use("/document", documentRouter);
 
 module.exports = router;

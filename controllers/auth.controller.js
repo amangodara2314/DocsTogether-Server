@@ -7,6 +7,19 @@ const register = async (req, res) => {
   try {
     const { email, password, name } = req.body;
     const hashedPassword = bcrypt.hashSync(password, SALT_ROUNDS);
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+    if (existingUser) {
+      return res.status(409).json({ message: "Email already exists" });
+    }
+    await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        name,
+      },
+    });
     const user = await prisma.user.create({
       data: {
         email,
@@ -18,7 +31,14 @@ const register = async (req, res) => {
       { email: user.email },
       process.env.JWT_SECRET
     );
-    await sendVerificationEmail(user.email, user.name, verificationToken);
+    try {
+      await sendVerificationEmail(user.email, user.name, verificationToken);
+    } catch (error) {
+      return res
+        .status(500)
+        .json({ message: "Unable to send verification email" });
+    }
+
     res.status(201).json({ message: "Verification email sent successfully" });
   } catch (error) {
     console.log(error);
@@ -55,7 +75,14 @@ const login = async (req, res) => {
     }
     if (!user.isVerified) {
       const userToken = jwt.sign({ email: user.email }, process.env.JWT_SECRET);
-      await sendVerificationEmail(user.email, user.name, userToken);
+      try {
+        await sendVerificationEmail(user.email, user.name, userToken);
+      } catch (error) {
+        console.log(error);
+        return res
+          .status(500)
+          .json({ message: "Unable to send verification email" });
+      }
       return res.status(401).json({
         message: "Email is not verified. Verification email sent successfully",
       });
