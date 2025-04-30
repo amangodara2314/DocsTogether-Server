@@ -101,4 +101,47 @@ const login = async (req, res) => {
   }
 };
 
-module.exports = { register, verifyUser, login };
+const googleAuth = async (req, res) => {
+  try {
+    const { code } = req.params;
+    const googleResult = await oauth2Client.getToken(code);
+    oauth2Client.setCredentials(googleResult.tokens);
+
+    const userResult = await fetch(
+      "https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=" +
+        googleResult.tokens.access_token
+    );
+    const userInfo = await userResult.json();
+    const existingUser = await prisma.user.findUnique({
+      email: userInfo.email,
+    });
+    if (existingUser) {
+      const token = jwt.sign(
+        { userId: existingUser.id },
+        process.env.JWT_SECRET
+      );
+      return res
+        .status(200)
+        .json({ message: "User logged in successfully", token });
+    }
+    const user = await prisma.user.create({
+      data: {
+        email: userInfo.email,
+        name: userInfo.name,
+        avatar: userInfo.picture,
+        isGoogleLogin: true,
+        isVerified: true,
+      },
+    });
+    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET);
+    res
+      .status(200)
+      .json({ message: `Welcome ${user.name} to DocsTogether`, token });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    console.log(error);
+    res.status(500).json({ message: error.message });
+  }
+};
+module.exports = { register, verifyUser, login, googleAuth };
