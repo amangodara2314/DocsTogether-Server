@@ -13,13 +13,7 @@ const register = async (req, res) => {
     if (existingUser) {
       return res.status(409).json({ message: "Email already exists" });
     }
-    await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        name,
-      },
-    });
+
     const user = await prisma.user.create({
       data: {
         email,
@@ -28,7 +22,7 @@ const register = async (req, res) => {
       },
     });
     const verificationToken = jwt.sign(
-      { email: user.email },
+      { email: user.email, id: user.id },
       process.env.JWT_SECRET
     );
     try {
@@ -39,7 +33,9 @@ const register = async (req, res) => {
         .json({ message: "Unable to send verification email" });
     }
 
-    res.status(201).json({ message: "Verification email sent successfully" });
+    res
+      .status(201)
+      .json({ message: "Verification link has been sent to your email" });
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Internal Server Error" });
@@ -49,17 +45,20 @@ const register = async (req, res) => {
 const verifyUser = async (req, res) => {
   try {
     const { token: userToken } = req.query;
+    if (!userToken) {
+      return res.status(400).json({ message: "Invalid token" });
+    }
     const decodedToken = jwt.verify(userToken, process.env.JWT_SECRET);
-    const { email } = decodedToken;
+    const { email, id } = decodedToken;
     const user = await prisma.user.update({
-      where: { email: email },
+      where: { email: email, id: id },
       data: { isVerified: true },
     });
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET);
-    res.status(200).json({ message: "User verified successfully", token });
+    res.status(200).json({ message: "Email verified successfully", token });
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Internal Server Error" });
@@ -89,7 +88,7 @@ const login = async (req, res) => {
     }
     const isPasswordValid = bcrypt.compareSync(password, user.password);
     if (!isPasswordValid) {
-      return res.status(401).json({ message: "Invalid password" });
+      return res.status(400).json({ message: "Invalid password" });
     }
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET);
     res
