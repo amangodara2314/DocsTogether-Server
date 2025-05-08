@@ -23,7 +23,8 @@ const register = async (req, res) => {
     });
     const verificationToken = jwt.sign(
       { email: user.email, id: user.id },
-      process.env.JWT_SECRET
+      process.env.JWT_SECRET,
+      { expiresIn: "10m" }
     );
     try {
       await sendVerificationEmail(user.email, user.name, verificationToken);
@@ -58,6 +59,7 @@ const verifyUser = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET);
+
     res.status(200).json({ message: "Email verified successfully", token });
   } catch (error) {
     console.log(error);

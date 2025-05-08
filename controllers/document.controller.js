@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const prisma = require("../lib/prisma");
 const { verifyToken, generateDocumentToken } = require("../lib/helper");
 const { ROLES, JWT_SECRET } = require("../lib/constant");
+const client = require("../configs/redis");
 
 exports.createDocument = async (req, res) => {
   try {
@@ -70,65 +71,102 @@ exports.accessDocument = async (req, res) => {
     const { docToken } = req.params;
     const decodedToken = jwt.verify(docToken, JWT_SECRET);
     const { docId, role = "VIEWER" } = decodedToken;
-    const document = await prisma.document.findUnique({
-      where: { id: docId },
-    });
-    if (!document) {
-      return res.status(404).json({ message: "Document not found" });
-    }
-    const authHeader = req.headers.authorization || "";
 
-    const userToken = authHeader.startsWith("Bearer ")
-      ? authHeader.split(" ")[1]
-      : authHeader;
+    const docMetaKey = `doc:meta:${docId}`;
+    const docContentKey = `doc:content:${docId}`;
 
-    if (document.visibility == "PUBLIC" && !userToken) {
+    // Try fetching metadata and content from Redis
+    let metadata = await client.get(docMetaKey);
+    let content = await client.get(docContentKey);
+
+    if (metadata && content) {
+      const document = {
+        ...JSON.parse(metadata),
+        content: JSON.parse(content),
+      };
       return res
         .status(200)
         .json({ message: "Document found", document, role });
     }
-    const { userId = "" } = verifyToken(userToken);
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
+
+    // Fetch from DB if not in Redis
+    const documentFromDB = await prisma.document.findUnique({
+      where: { id: docId },
     });
+
+    if (!documentFromDB) {
+      return res.status(404).json({ message: "Document not found" });
+    }
+
+    const authHeader = req.headers.authorization || "";
+    const userToken = authHeader.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
+      : authHeader;
+
+    await client.set(
+      docMetaKey,
+      JSON.stringify({
+        id: documentFromDB.id,
+        title: documentFromDB.title,
+        visibility: documentFromDB.visibility,
+        ownerId: documentFromDB.ownerId,
+        createdAt: documentFromDB.createdAt,
+        updatedAt: documentFromDB.updatedAt,
+      })
+    );
+
+    await client.set(docContentKey, JSON.stringify(documentFromDB.content));
+
+    if (documentFromDB.visibility === "PUBLIC" && !userToken) {
+      return res.status(200).json({
+        message: "Document found",
+        document: {
+          ...documentFromDB,
+        },
+        role,
+      });
+    }
+
+    const { userId = "" } = verifyToken(userToken);
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
+
     const existingShare = await prisma.documentShare.findFirst({
       where: {
         documentId: docId,
         userId: userId,
       },
     });
+
     if (existingShare) {
       return res.status(200).json({
         message: "Document found",
-        document,
+        document: documentFromDB,
         role: existingShare.role,
       });
     }
+
     await prisma.documentShare.create({
       data: {
-        document: {
-          connect: {
-            id: document.id,
-          },
-        },
-        user: {
-          connect: {
-            id: user.id,
-          },
-        },
+        document: { connect: { id: docId } },
+        user: { connect: { id: userId } },
         role,
       },
     });
-    return res.status(200).json({ message: "Document found", document, role });
+
+    return res.status(200).json({
+      message: "Document found",
+      document: documentFromDB,
+      role,
+    });
   } catch (error) {
-    console.log(error);
+    console.error("Error in accessDocument:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
 exports.getDocumentLink = async (req, res) => {
   try {
     const { docId } = req.params;
