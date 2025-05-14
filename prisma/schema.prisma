@@ -24,6 +24,8 @@ model Document {
   id          String           @id @default(cuid())
   title       String           @default("Untitled Document")
   content     Json
+  leftMargin   Int              @default(0)
+  rightMargin  Int              @default(0)
   ownerId     String
   owner       User             @relation("UserDocuments", fields: [ownerId], references: [id])
   createdAt   DateTime         @default(now())

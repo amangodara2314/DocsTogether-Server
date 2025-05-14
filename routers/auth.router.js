@@ -4,9 +4,12 @@ const {
   verifyUser,
   login,
   googleAuth,
+  getUserDetails,
 } = require("../controllers/auth.controller");
+const { authMiddleware } = require("../lib/middleware");
 const authRouter = Router();
 
+authRouter.get("/user", authMiddleware, getUserDetails);
 authRouter.get("/verify-email", verifyUser);
 authRouter.post("/register", register);
 authRouter.post("/login", login);

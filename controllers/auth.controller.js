@@ -3,6 +3,7 @@ const prisma = require("../lib/prisma");
 const { SALT_ROUNDS } = require("../lib/constant");
 const { sendVerificationEmail } = require("../lib/mailer");
 const jwt = require("jsonwebtoken");
+const client = require("../configs/redis");
 const register = async (req, res) => {
   try {
     const { email, password, name } = req.body;
@@ -145,4 +146,35 @@ const googleAuth = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-module.exports = { register, verifyUser, login, googleAuth };
+
+const getUserDetails = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const userCacheKey = `users:${userId}`;
+    const cachedUser = await client.get(userCacheKey);
+    if (cachedUser) {
+      console.log("Cache hit");
+      return res
+        .status(200)
+        .json({ message: "User found", user: JSON.parse(cachedUser) });
+    }
+    console.log("Cache miss");
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true, avatar: true },
+    });
+    if (!user) {
+      return res
+        .status(403)
+        .json({ message: "User does not exist. Please login again" });
+    }
+    await client.set(userCacheKey, JSON.stringify(user), {
+      EX: 60 * 10,
+    });
+    res.status(200).json({ message: "User found", user });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+module.exports = { register, verifyUser, login, googleAuth, getUserDetails };

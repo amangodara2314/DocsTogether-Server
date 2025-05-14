@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Document" ADD COLUMN     "leftMargin" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "rightMargin" INTEGER NOT NULL DEFAULT 0;

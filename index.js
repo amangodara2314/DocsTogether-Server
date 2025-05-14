@@ -4,7 +4,7 @@ const cors = require("cors");
 const router = require("./routers/routes");
 const client = require("./configs/redis");
 const appEmitter = require("./configs/emitter");
-const { handleSocketDocJoin } = require("./socketHandlers/joinDoc");
+const { handleSocketDocJoinAndLeave } = require("./socketHandlers/joinDoc");
 const { handleDocUpdate } = require("./socketHandlers/updateDoc");
 const app = express();
 const Server = require("socket.io").Server;
@@ -25,6 +25,6 @@ httpServer.listen(PORT, async () => {
 
 io.on("connection", (socket) => {
   console.log("A user connected " + socket.id);
-  handleSocketDocJoin(io, socket);
+  handleSocketDocJoinAndLeave(io, socket);
   handleDocUpdate(io, socket);
 });

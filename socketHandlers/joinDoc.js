@@ -1,8 +1,9 @@
 const client = require("../configs/redis");
 const { generateAnonName, getRandomAvatar } = require("../lib/anonUser");
 
-exports.handleSocketDocJoin = (io, socket) => {
+exports.handleSocketDocJoinAndLeave = (io, socket) => {
   socket.on("join", async ({ docId, userId, name, avatar, role }) => {
+    console.log("join", { docId, userId, name, avatar, role });
     try {
       const id = userId || `anon-${socket.id}`;
       const presenceKey = `activeUsers:${docId}`;
@@ -29,6 +30,8 @@ exports.handleSocketDocJoin = (io, socket) => {
       const id = userId || `anon-${socket.id}`;
       const presenceKey = `activeUsers:${docId}`;
       const members = await client.sMembers(presenceKey);
+
+      console.log("leave", { docId, userId, id });
 
       for (const member of members) {
         const parsed = JSON.parse(member);

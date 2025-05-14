@@ -6,6 +6,8 @@ const {
   getUserDocuments,
   getSharedDocuments,
   generateDocumentLink,
+  renameDocument,
+  deleteDocument,
 } = require("../controllers/document.controller");
 const { authMiddleware } = require("../lib/middleware");
 const documentRouter = Router();
@@ -15,17 +17,17 @@ documentRouter.get(
   authMiddleware,
   generateDocumentLink
 );
+
 documentRouter.get("/link/:docId", authMiddleware, getDocumentLink);
 
-documentRouter.get(
-  "shared-documents/:docId",
-  authMiddleware,
-  getSharedDocuments
-);
 documentRouter.get("/", authMiddleware, getUserDocuments);
 
 documentRouter.get("/join/:docToken", accessDocument);
 
 documentRouter.post("/", authMiddleware, createDocument);
+
+documentRouter.patch("/rename/:docId", authMiddleware, renameDocument);
+
+documentRouter.delete("/:docId", authMiddleware, deleteDocument);
 
 module.exports = documentRouter;
